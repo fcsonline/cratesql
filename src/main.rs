@@ -32,14 +32,13 @@ pub struct Crate {
   max_upload_size: Option<i32>,
 }
 
-impl Crate {
-  pub fn id(&self) -> i32 {
-    self.id
-  }
-
-  pub fn name(&self) -> &str {
-    self.name.as_str()
-  }
+#[derive(Clone, GraphQLObject, Queryable)]
+#[graphql(description = "A keyword")]
+pub struct Keyword {
+  id: i32,
+  keyword: String,
+  crates_cnt: i32,
+  created_at: NaiveDateTime,
 }
 
 #[derive(Default, Clone)]
@@ -92,6 +91,17 @@ impl Query {
           .limit(100)
           .load::<Crate>(&connection)
           .expect("Error loading crates")
+    }
+
+    #[graphql(name = "keywords", arguments())]
+    fn keywords(_database: &Database) -> Vec<Keyword> {
+        use crate::schema::keywords::dsl::*;
+        let connection = establish_connection();
+
+        keywords
+          .limit(100)
+          .load::<Keyword>(&connection)
+          .expect("Error loading keywords")
     }
 }
 
