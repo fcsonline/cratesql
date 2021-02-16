@@ -41,6 +41,17 @@ pub struct Keyword {
   created_at: NaiveDateTime,
 }
 
+#[derive(Clone, GraphQLObject, Queryable)]
+#[graphql(description = "A category")]
+pub struct Category {
+  id: i32,
+  category: String,
+  slug: String,
+  description: String,
+  crates_cnt: i32,
+  created_at: NaiveDateTime,
+}
+
 #[derive(Default, Clone)]
 pub struct Database {
     ///this could be a database connection
@@ -102,6 +113,17 @@ impl Query {
           .limit(100)
           .load::<Keyword>(&connection)
           .expect("Error loading keywords")
+    }
+
+    #[graphql(name = "categories", arguments())]
+    fn categories(_database: &Database) -> Vec<Category> {
+        use crate::schema::categories::dsl::*;
+        let connection = establish_connection();
+
+        categories
+          .limit(100)
+          .load::<Category>(&connection)
+          .expect("Error loading categories")
     }
 }
 
