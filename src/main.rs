@@ -1,17 +1,35 @@
 #![deny(warnings)]
-
 use std::{collections::HashMap, env};
+
+#[macro_use]
+extern crate diesel;
+
+mod schema;
+
+use diesel::pg::PgConnection;
+use diesel::prelude::*;
+use chrono::NaiveDateTime;
+use dotenv::dotenv;
 
 use actix_cors::Cors;
 use actix_web::{http::header, middleware, web, App, Error, HttpResponse, HttpServer};
 use juniper::{graphql_object, EmptyMutation, EmptySubscription, GraphQLObject, RootNode};
 use juniper_actix::{graphiql_handler, graphql_handler, playground_handler};
 
-#[derive(Clone, GraphQLObject)]
+#[derive(Clone, GraphQLObject, Queryable)]
 #[graphql(description = "A Rust package")]
 pub struct Crate {
   id: i32,
   name: String,
+  updated_at: NaiveDateTime,
+  created_at: NaiveDateTime,
+  downloads: i32,
+  description: Option<String>,
+  homepage: Option<String>,
+  documentation: Option<String>,
+  readme: Option<String>,
+  repository: Option<String>,
+  max_upload_size: Option<i32>,
 }
 
 impl Crate {
@@ -32,21 +50,7 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> Database {
-        let mut crates = HashMap::new();
-        crates.insert(
-            1,
-            Crate {
-                id: 1,
-                name: "serde".to_string(),
-            },
-        );
-        crates.insert(
-            2,
-            Crate {
-                id: 2,
-                name: "juniper".to_string(),
-            },
-        );
+        let crates = HashMap::new();
 
         Database { crates }
     }
@@ -78,6 +82,17 @@ impl Query {
     fn cratez(database: &Database, id: i32, _name: Option<String>) -> Option<&Crate> {
         database.get_crate(&id)
     }
+
+    #[graphql(name = "crates", arguments())]
+    fn crates(_database: &Database) -> Vec<Crate> {
+        use crate::schema::crates::dsl::*;
+        let connection = establish_connection();
+
+        crates
+          .limit(100)
+          .load::<Crate>(&connection)
+          .expect("Error loading crates")
+    }
 }
 
 type Schema = RootNode<'static, Query, EmptyMutation<Database>, EmptySubscription<Database>>;
@@ -105,6 +120,12 @@ async fn graphql_route(
 ) -> Result<HttpResponse, Error> {
     let context = Database::new();
     graphql_handler(&schema, &context, req, payload).await
+}
+
+fn establish_connection() -> PgConnection {
+  dotenv().ok();
+  let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+  PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
 }
 
 #[actix_web::main]
